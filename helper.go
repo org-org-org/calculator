@@ -33,3 +33,8 @@ func isOperator(str string) bool {
 	_, ok := priority[str]
 	return ok
 }
+
+func canBeArgs(ch uint8) bool {
+	s := string(ch)
+	return isDigit(s) || isAlpha(s)
+}

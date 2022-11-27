@@ -2,6 +2,7 @@ package tests
 
 import (
 	"calculator"
+	"fmt"
 	"math"
 	"testing"
 )
@@ -34,4 +35,21 @@ func TestCal(t *testing.T) {
 	test(t, "MAX(MIN(0.1,2),MIN(0.3,4))", 0.3)
 	test(t, "MAX(MIN(-3,2),MIN((-5/4),4))", -1.25)
 	test(t, "MAX(MIN(1,2,0.1),MIN(3,4,0.3))", 0.3)
+}
+
+func TestExpression(t *testing.T) {
+	expression, err := cal.ToExpression("a+b/c")
+	fmt.Println(expression)
+	if err != nil {
+		t.Error(err)
+	}
+	v, err := cal.CalWithArgs(map[string]float64{
+		"a": 0.5,
+		"b": 1,
+		"c": 2,
+	})
+	fmt.Println(v)
+	if err != nil {
+		t.Error(err)
+	}
 }
