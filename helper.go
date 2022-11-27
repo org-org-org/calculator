@@ -1,16 +1,5 @@
 package calculator
 
-import "fmt"
-
-func (c *Calculator) popOperator() error {
-	op := c.operator.Pop()
-	if op == "(" {
-		return fmt.Errorf("表达式错误，请检查是否有多余的左括号")
-	}
-	c.expression += op.(string)
-	return nil
-}
-
 func isDigit(str string) bool {
 	for i := range str {
 		if str[i] < '0' || str[i] > '9' {
@@ -37,11 +26,10 @@ func isUpper(ch uint8) bool {
 	return ch >= 'A' && ch <= 'Z'
 }
 
-func (c *Calculator) SetExpression(expression string) {
-	c.expression = expression
-}
-
-func (c *Calculator) isOperator(str string) bool {
+func isOperator(str string) bool {
+	if len(str) != 1 {
+		return false
+	}
 	_, ok := priority[str]
 	return ok
 }

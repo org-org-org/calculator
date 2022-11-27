@@ -3,9 +3,10 @@ package calculator
 import "fmt"
 
 type Calculator struct {
-	preExpression string
-	operator      *Stack
-	expression    string
+	preExpression    string
+	suffixExpression string
+	letterExpression string
+	operator         *Stack
 }
 
 func NewCalculator() *Calculator {
@@ -16,34 +17,26 @@ func NewCalculator() *Calculator {
 
 func (c *Calculator) ToExpression(str string) (string, error) {
 	c.preExpression = str
-	c.expression = ""
-	alpha := ""
-	for i := range c.preExpression {
+	c.suffixExpression = ""
+	c.letterExpression = ""
+	for i := range str {
 		s := string(str[i])
 		switch {
 		case isDigit(s):
-			c.expression += s
+			c.suffixExpression += s
 			if i+1 >= len(str) || !isDigit(string(str[i+1])) {
-				c.expression += ","
+				c.suffixExpression += ","
 			}
 		case isAlpha(s):
-			alpha += s
-			if i+1 < len(str) && str[i+1] == '(' {
-				//if err := c.dealOperator(alpha+":", i); err != nil {
-				//	return "", err
-				//}
-				_, ok := OpHandler[alpha]
-				if ok {
-					c.operator.Push(alpha + ":")
-				}
-				alpha = ""
-			}
-		case s == ",":
-			for !c.operator.Empty() && c.operator.Top() != "(" {
-				err := c.popOperator()
-				if err != nil {
+			c.letterExpression += s
+			if i+1 < len(str) && str[i+1] == '(' { // 函数
+				if err := c.dealFuncExpression(); err != nil {
 					return "", err
 				}
+			}
+		case s == ",":
+			if err := c.popUntilBracket(); err != nil {
+				return "", err
 			}
 		case s == "(":
 			c.operator.Push(s)
@@ -51,30 +44,29 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 			if err := c.dealRightBracket(); err != nil {
 				return "", err
 			}
-		case c.isOperator(s): // 操作符
+		case isOperator(s): // 操作符
 			if err := c.dealOperator(s, i); err != nil {
 				return "", err
 			}
 		}
 	}
 	for !c.operator.Empty() {
-		err := c.popOperator()
-		if err != nil {
+		if err := c.popOperator(); err != nil {
 			return "", err
 		}
 	}
-	return c.expression, nil
+	return c.suffixExpression, nil
 }
 
 func (c *Calculator) Cal() (interface{}, error) {
-	if c.expression == "" {
+	if c.suffixExpression == "" {
 		return nil, fmt.Errorf("还未设置表达式")
 	}
+	c.letterExpression = ""
 	var t float64 = 0
-	alpha := ""
 	number := NewStack()
-	for i := range c.expression {
-		ch := c.expression[i]
+	for i := range c.suffixExpression {
+		ch := c.suffixExpression[i]
 		switch {
 		case isDigit(string(ch)):
 			t = t*10 + float64(ch) - '0'
@@ -82,25 +74,22 @@ func (c *Calculator) Cal() (interface{}, error) {
 			number.Push(t)
 			t = 0
 		case isAlpha(string(ch)):
-
-			alpha += string(ch)
-			if i+1 >= len(c.expression) || c.expression[i+1] == ':' {
-				handler, ok := OpHandler[alpha]
-				if ok {
-					if number.Len() < 2 {
-						return nil, fmt.Errorf("错误的表达式")
-					}
-					y := number.Pop().(float64)
-					x := number.Pop().(float64)
-					v, err := handler(x, y)
-					if err != nil {
-						return nil, err
-					}
-					number.Push(v)
+			c.letterExpression += string(ch)
+			if i+1 < len(c.suffixExpression) && c.suffixExpression[i+1] == ':' {
+				handler, ok := OpHandler[c.letterExpression]
+				if !ok || number.Len() < 2 {
+					return nil, fmt.Errorf("错误的表达式")
 				}
-				alpha = ""
+				y := number.Pop().(float64)
+				x := number.Pop().(float64)
+				v, err := handler(x, y)
+				if err != nil {
+					return nil, err
+				}
+				number.Push(v)
+				c.letterExpression = ""
 			}
-		case c.isOperator(string(ch)):
+		case isOperator(string(ch)):
 			if number.Len() < 2 {
 				return nil, fmt.Errorf("错误的表达式")
 			}
@@ -117,4 +106,8 @@ func (c *Calculator) Cal() (interface{}, error) {
 		return nil, fmt.Errorf("错误的表达式")
 	}
 	return number.Top(), nil
+}
+
+func (c *Calculator) SetExpression(expression string) {
+	c.suffixExpression = expression
 }
