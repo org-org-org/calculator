@@ -24,7 +24,7 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 		switch {
 		case isDigit(s):
 			c.suffixExpression += s
-			if i+1 >= len(str) || !isDigit(string(str[i+1])) {
+			if i+1 >= len(str) || !(isDigit(string(str[i+1])) || str[i+1] == '.') {
 				c.suffixExpression += ","
 			}
 		case isAlpha(s):
@@ -38,6 +38,8 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 			if err := c.popUntilBracket(); err != nil {
 				return "", err
 			}
+		case s == ".":
+			c.suffixExpression += s
 		case s == "(":
 			c.operator.Push(s)
 		case s == ")": // 右括号
@@ -65,14 +67,22 @@ func (c *Calculator) Cal() (interface{}, error) {
 	c.letterExpression = ""
 	var t float64 = 0
 	number := NewStack()
+	isFloat := false
 	for i := range c.suffixExpression {
 		ch := c.suffixExpression[i]
 		switch {
 		case isDigit(string(ch)):
-			t = t*10 + float64(ch) - '0'
+			if isFloat {
+				t = t + 0.1*(float64(ch)-'0')
+			} else {
+				t = t*10 + float64(ch) - '0'
+			}
 		case ch == ',':
 			number.Push(t)
 			t = 0
+			isFloat = false
+		case ch == '.':
+			isFloat = true
 		case isAlpha(string(ch)):
 			c.letterExpression += string(ch)
 			if i+1 < len(c.suffixExpression) && c.suffixExpression[i+1] == ':' {

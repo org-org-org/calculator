@@ -28,4 +28,6 @@ func TestCal(t *testing.T) {
 	test(t, "-12/6+5+2*3", 9)
 	test(t, "MAX(MIN(1,2),MIN(3,4))", 3)
 	test(t, "MAX(MIN(-3,2),MIN((-5/4),4))", -1.25)
+	test(t, "2.5+0.5", 3)
+	test(t, "-0.5-1", -1.5)
 }
