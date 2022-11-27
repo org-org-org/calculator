@@ -1,13 +1,19 @@
 package calculator
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 func (c *Calculator) popOperator() error {
-	op := c.operator.Pop()
+	op := c.operator.Pop().(string)
 	if op == "(" {
 		return fmt.Errorf("表达式错误，请检查是否有多余的左括号")
 	}
-	c.suffixExpression += op.(string)
+	if len(op) > 1 {
+		op += "@"
+	}
+	c.suffixExpression += op
 	return nil
 }
 
@@ -16,7 +22,7 @@ func (c *Calculator) dealFuncExpression() error {
 	if !ok {
 		return fmt.Errorf("未知的函数%s", c.letterExpression)
 	}
-	c.operator.Push(c.letterExpression + ":")
+	c.operator.Push(c.letterExpression + ":1")
 	c.letterExpression = ""
 	return nil
 }
@@ -33,6 +39,18 @@ func (c *Calculator) dealOperator(s string, index int) error {
 	}
 	c.operator.Push(s)
 	return nil
+}
+
+func (c *Calculator) addArgsCnt() error {
+	str, i, index, err := c.operator.LastContains(':')
+	if err != nil {
+		return err
+	}
+	cnt, err := strconv.Atoi(str[index+1:])
+	if err != nil {
+		return err
+	}
+	return c.operator.SetIndex(i, str[:index+1]+strconv.Itoa(cnt+1))
 }
 
 func (c *Calculator) popUntilBracket() error {

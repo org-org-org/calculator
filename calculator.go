@@ -1,6 +1,10 @@
 package calculator
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 type Calculator struct {
 	preExpression    string
@@ -35,6 +39,10 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 				}
 			}
 		case s == ",":
+			err := c.addArgsCnt()
+			if err != nil {
+				return "", err
+			}
 			if err := c.popUntilBracket(); err != nil {
 				return "", err
 			}
@@ -68,7 +76,7 @@ func (c *Calculator) Cal() (interface{}, error) {
 	var t float64 = 0
 	number := NewStack()
 	isFloat := false
-	for i := range c.suffixExpression {
+	for i := 0; i < len(c.suffixExpression); i++ {
 		ch := c.suffixExpression[i]
 		switch {
 		case isDigit(string(ch)):
@@ -86,18 +94,27 @@ func (c *Calculator) Cal() (interface{}, error) {
 		case isAlpha(string(ch)):
 			c.letterExpression += string(ch)
 			if i+1 < len(c.suffixExpression) && c.suffixExpression[i+1] == ':' {
+				next := strings.IndexRune(c.suffixExpression[i+2:], '@')
+				cnt, err := strconv.Atoi(c.suffixExpression[i+2 : i+2+next])
+				if err != nil {
+					return "", err
+				}
 				handler, ok := OpHandler[c.letterExpression]
-				if !ok || number.Len() < 2 {
+				if !ok || number.Len() < cnt {
 					return nil, fmt.Errorf("错误的表达式")
 				}
-				y := number.Pop().(float64)
-				x := number.Pop().(float64)
-				v, err := handler(x, y)
+				args := make([]float64, cnt)
+				for j := cnt - 1; j >= 0; j-- {
+					args[j] = number.Pop().(float64)
+				}
+				//fmt.Println(args)
+				v, err := handler(args...)
 				if err != nil {
 					return nil, err
 				}
 				number.Push(v)
 				c.letterExpression = ""
+				i = i + 2 + next
 			}
 		case isOperator(string(ch)):
 			if number.Len() < 2 {
