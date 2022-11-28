@@ -2,29 +2,11 @@ package tests
 
 import (
 	"calculator"
-	"fmt"
 	"math"
 	"testing"
 )
 
 var cal = calculator.NewCalculator()
-
-func test(t *testing.T, str string, ans float64) {
-	expression, err := cal.ToExpression(str)
-	//fmt.Println(expression)
-	if err != nil {
-		t.Error(err)
-	}
-	res, err := cal.Cal()
-	if err != nil {
-		t.Error(err)
-	}
-	if math.Abs(res.(float64)-ans) > 1e-6 {
-		t.Logf("原表达式：%s\n", str)
-		t.Logf("转化的表达式：%s\n", expression)
-		t.Errorf("错误的答案%f，期望为%f\n", res, ans)
-	}
-}
 
 func TestCal(t *testing.T) {
 	test(t, "4^(-2+2)", 1)
@@ -37,19 +19,45 @@ func TestCal(t *testing.T) {
 	test(t, "MAX(MIN(1,2,0.1),MIN(3,4,0.3))", 0.3)
 }
 
-func TestExpression(t *testing.T) {
-	expression, err := cal.ToExpression("a+b/c")
-	fmt.Println(expression)
+func TestCalWithArgs(t *testing.T) {
+	testWithArgs(t, "MIN(apple,why,zc)", map[string]float64{
+		"apple": 1,
+		"why":   0.5,
+		"zc":    2,
+	}, 0.5)
+}
+
+func test(t *testing.T, str string, ans float64) {
+	expression, err := cal.ToSuffixExpression(str)
+	//fmt.Println(expression)
 	if err != nil {
 		t.Error(err)
 	}
-	v, err := cal.CalWithArgs(map[string]float64{
-		"a": 0.5,
-		"b": 1,
-		"c": 2,
-	})
-	fmt.Println(v)
+	res, err := cal.Cal()
 	if err != nil {
 		t.Error(err)
+	}
+	if math.Abs(res-ans) > 1e-6 {
+		t.Logf("原表达式：%s\n", str)
+		t.Logf("转化的表达式：%s\n", expression)
+		t.Errorf("错误的答案%f，期望为%f\n", res, ans)
+	}
+}
+
+func testWithArgs(t *testing.T, str string, args map[string]float64, ans float64) {
+	expression, err := cal.ToSuffixExpression(str)
+	//fmt.Println(expression)
+	if err != nil {
+		t.Error(err)
+	}
+	res, err := cal.SetArgs(args).Cal()
+	if err != nil {
+		t.Error(err)
+	}
+	if math.Abs(res-ans) > 1e-6 {
+		t.Logf("原表达式：%s\n", str)
+		t.Logf("转化的表达式：%s\n", expression)
+		t.Logf("参数：%v\n", args)
+		t.Errorf("错误的答案%f，期望为%f\n", res, ans)
 	}
 }

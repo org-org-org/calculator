@@ -18,12 +18,12 @@ func (c *Calculator) popOperator() error {
 }
 
 func (c *Calculator) dealFuncExpression() error {
-	_, ok := OpHandler[c.letterExpression]
+	_, ok := OpHandler[c.letters]
 	if !ok {
-		return fmt.Errorf("未知的函数%s", c.letterExpression)
+		return fmt.Errorf("未知的函数%s", c.letters)
 	}
-	c.operator.Push(c.letterExpression + ":1")
-	c.letterExpression = ""
+	c.operator.Push(c.letters + ":1")
+	c.letters = ""
 	return nil
 }
 
@@ -71,9 +71,29 @@ func (c *Calculator) dealRightBracket() error {
 	}
 	c.operator.Pop()
 	if !c.operator.Empty() && len(c.operator.Top().(string)) > 1 {
-		if err := c.popOperator(); err != nil {
-			return err
-		}
+		return c.popOperator()
 	}
+	return nil
+}
+
+func (c *Calculator) calFunction(i, next int, number *Stack) error {
+	cnt, err := strconv.Atoi(c.suffixExpression[i+2 : i+2+next])
+	if err != nil {
+		return err
+	}
+	handler, ok := OpHandler[c.letters]
+	if !ok || number.Len() < cnt {
+		return fmt.Errorf("错误的表达式")
+	}
+	c.letters = ""
+	args := make([]float64, cnt)
+	for j := cnt - 1; j >= 0; j-- {
+		args[j] = number.Pop().(float64)
+	}
+	v, err := handler(args...)
+	if err != nil {
+		return err
+	}
+	number.Push(v)
 	return nil
 }

@@ -10,7 +10,9 @@ type Stack struct {
 }
 
 func NewStack() *Stack {
-	return &Stack{}
+	return &Stack{
+		a: make([]interface{}, 0),
+	}
 }
 
 func (s *Stack) Len() int {

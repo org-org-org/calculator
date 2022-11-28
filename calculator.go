@@ -2,15 +2,15 @@ package calculator
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
 type Calculator struct {
 	preExpression    string
 	suffixExpression string
-	letterExpression string
+	letters          string
 	operator         *Stack
+	args             map[string]float64
 }
 
 func NewCalculator() *Calculator {
@@ -19,10 +19,10 @@ func NewCalculator() *Calculator {
 	}
 }
 
-func (c *Calculator) ToExpression(str string) (string, error) {
+func (c *Calculator) ToSuffixExpression(str string) (string, error) {
 	c.preExpression = str
 	c.suffixExpression = ""
-	c.letterExpression = ""
+	c.letters = ""
 	for i := range str {
 		s := string(str[i])
 		switch {
@@ -32,18 +32,17 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 				c.suffixExpression += ","
 			}
 		case isAlpha(s):
-			c.letterExpression += s
+			c.letters += s
 			if i+1 < len(str) && str[i+1] == '(' { // 函数
 				if err := c.dealFuncExpression(); err != nil {
 					return "", err
 				}
 			} else if i+1 >= len(str) || !canBeArgs(str[i+1]) { // 变量
-				c.suffixExpression += c.letterExpression + ","
-				c.letterExpression = ""
+				c.suffixExpression += c.letters + ","
+				c.letters = ""
 			}
 		case s == ",":
-			err := c.addArgsCnt()
-			if err != nil {
+			if err := c.addArgsCnt(); err != nil {
 				return "", err
 			}
 			if err := c.popUntilBracket(); err != nil {
@@ -71,98 +70,35 @@ func (c *Calculator) ToExpression(str string) (string, error) {
 	return c.suffixExpression, nil
 }
 
-func (c *Calculator) Cal() (interface{}, error) {
+func (c *Calculator) Cal() (float64, error) {
 	if c.suffixExpression == "" {
-		return nil, fmt.Errorf("还未设置表达式")
+		return 0, fmt.Errorf("还未设置表达式")
 	}
-	c.letterExpression = ""
+	c.letters = ""
 	var t float64 = 0
 	number := NewStack()
 	isFloat := false
 	for i := 0; i < len(c.suffixExpression); i++ {
 		ch := c.suffixExpression[i]
+		s := string(ch)
 		switch {
-		case isDigit(string(ch)):
+		case isDigit(s):
 			if isFloat {
 				t = t + 0.1*(float64(ch)-'0')
 			} else {
 				t = t*10 + float64(ch) - '0'
 			}
 		case ch == ',':
-			number.Push(t)
-			t = 0
-			isFloat = false
-		case ch == '.':
-			isFloat = true
-		case isAlpha(string(ch)):
-			c.letterExpression += string(ch)
-			if i+1 < len(c.suffixExpression) && c.suffixExpression[i+1] == ':' {
-				next := strings.IndexRune(c.suffixExpression[i+2:], '@')
-				cnt, err := strconv.Atoi(c.suffixExpression[i+2 : i+2+next])
-				if err != nil {
-					return "", err
+			if c.letters != "" {
+				if c.args == nil {
+					return 0, fmt.Errorf("未设置参数map")
 				}
-				handler, ok := OpHandler[c.letterExpression]
-				if !ok || number.Len() < cnt {
-					return nil, fmt.Errorf("错误的表达式")
-				}
-				args := make([]float64, cnt)
-				for j := cnt - 1; j >= 0; j-- {
-					args[j] = number.Pop().(float64)
-				}
-				//fmt.Println(args)
-				v, err := handler(args...)
-				if err != nil {
-					return nil, err
-				}
-				number.Push(v)
-				c.letterExpression = ""
-				i = i + 2 + next
-			}
-		case isOperator(string(ch)):
-			if number.Len() < 2 {
-				return nil, fmt.Errorf("错误的表达式")
-			}
-			y := number.Pop().(float64)
-			x := number.Pop().(float64)
-			v, err := OpHandler[string(ch)](x, y)
-			if err != nil {
-				return nil, err
-			}
-			number.Push(v)
-		}
-	}
-	if number.Len() != 1 {
-		return nil, fmt.Errorf("错误的表达式")
-	}
-	return number.Top(), nil
-}
-
-func (c *Calculator) CalWithArgs(args map[string]float64) (interface{}, error) {
-	if c.suffixExpression == "" {
-		return nil, fmt.Errorf("还未设置表达式")
-	}
-	c.letterExpression = ""
-	var t float64 = 0
-	number := NewStack()
-	isFloat := false
-	for i := 0; i < len(c.suffixExpression); i++ {
-		ch := c.suffixExpression[i]
-		switch {
-		case isDigit(string(ch)):
-			if isFloat {
-				t = t + 0.1*(float64(ch)-'0')
-			} else {
-				t = t*10 + float64(ch) - '0'
-			}
-		case ch == ',':
-			if c.letterExpression != "" {
-				v, ok := args[c.letterExpression]
+				v, ok := c.args[c.letters]
 				if !ok {
-					return nil, fmt.Errorf("未知的参数%s", c.letterExpression)
+					return 0, fmt.Errorf("未知的参数%s", c.letters)
 				}
 				number.Push(v)
-				c.letterExpression = ""
+				c.letters = ""
 			} else {
 				number.Push(t)
 				t = 0
@@ -170,50 +106,40 @@ func (c *Calculator) CalWithArgs(args map[string]float64) (interface{}, error) {
 			}
 		case ch == '.':
 			isFloat = true
-		case isAlpha(string(ch)):
-			c.letterExpression += string(ch)
+		case isAlpha(s):
+			c.letters += s
 			if i+1 < len(c.suffixExpression) && c.suffixExpression[i+1] == ':' {
 				next := strings.IndexRune(c.suffixExpression[i+2:], '@')
-				cnt, err := strconv.Atoi(c.suffixExpression[i+2 : i+2+next])
-				if err != nil {
-					return "", err
+				if err := c.calFunction(i, next, number); err != nil {
+					return 0, err
 				}
-				handler, ok := OpHandler[c.letterExpression]
-				if !ok || number.Len() < cnt {
-					return nil, fmt.Errorf("错误的表达式")
-				}
-				args := make([]float64, cnt)
-				for j := cnt - 1; j >= 0; j-- {
-					args[j] = number.Pop().(float64)
-				}
-				//fmt.Println(args)
-				v, err := handler(args...)
-				if err != nil {
-					return nil, err
-				}
-				number.Push(v)
-				c.letterExpression = ""
 				i = i + 2 + next
 			}
-		case isOperator(string(ch)):
+		case isOperator(s):
 			if number.Len() < 2 {
-				return nil, fmt.Errorf("错误的表达式")
+				return 0, fmt.Errorf("错误的表达式")
 			}
 			y := number.Pop().(float64)
 			x := number.Pop().(float64)
-			v, err := OpHandler[string(ch)](x, y)
+			v, err := OpHandler[s](x, y)
 			if err != nil {
-				return nil, err
+				return 0, err
 			}
 			number.Push(v)
 		}
 	}
 	if number.Len() != 1 {
-		return nil, fmt.Errorf("错误的表达式")
+		return 0, fmt.Errorf("错误的表达式")
 	}
-	return number.Top(), nil
+	return number.Top().(float64), nil
 }
 
-func (c *Calculator) SetExpression(expression string) {
+func (c *Calculator) SetSuffixExpression(expression string) *Calculator {
 	c.suffixExpression = expression
+	return c
+}
+
+func (c *Calculator) SetArgs(args map[string]float64) *Calculator {
+	c.args = args
+	return c
 }
